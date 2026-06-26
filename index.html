@@ -138,7 +138,7 @@ header {
 /* ── CARDS ───────────────────────────── */
 .cards-inner {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   height: 100%;
 }
 .card {
@@ -152,7 +152,7 @@ header {
   content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
   background: linear-gradient(90deg, transparent, var(--border), transparent);
 }
-.card-lbl { font-size: 9px; font-family: var(--mono); color: var(--t3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.card-lbl { font-size: 9px; font-family: var(--mono); color: var(--t1); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
 .card-val { font-family: var(--mono); font-size: 19px; font-weight: 700; color: var(--t1); line-height: 1; }
 .card-sub { font-size: 10px; margin-top: 4px; font-family: var(--mono); }
 .up   { color: var(--green); }
@@ -393,11 +393,7 @@ header {
             <div class="card-val" id="cImbal">—</div>
             <div class="card-sub" id="cImbalSub">—</div>
           </div>
-          <div class="card">
-            <div class="card-lbl">Ліквідації · Сесія</div>
-            <div class="card-val" id="cLiq">—</div>
-            <div class="card-sub" id="cLiqSub">—</div>
-          </div>
+
         </div>
       </div>
     </div>
@@ -459,13 +455,7 @@ header {
           <span class="chart-tag" id="cvdLive" style="color:var(--t3)">—</span>
         </div>
         <div id="cvdChart" style="flex:1; min-height:0;"></div>
-        <div class="chart-divider"></div>
-        <div class="cvd-header">
-          <span class="chart-tag"><b>ЛІКВІДАЦІЇ</b></span>
-          <span class="chart-tag">Binance Futures · Long+Short</span>
-          <span class="chart-tag" id="liqLive" style="color:var(--t3)">—</span>
-        </div>
-        <div id="liqChart" style="flex:0 0 80px; min-height:0;"></div>
+
       </div>
     </div>
   </div>
@@ -616,26 +606,16 @@ function initCharts() {
     lineWidth: 2,
   });
 
-  const le = document.getElementById('liqChart');
-  liqChart = LightweightCharts.createChart(le, {
-    ...common,
-    width: le.clientWidth, height: le.clientHeight || 80,
-    timeScale: { borderColor: '#1c2740', timeVisible: true, secondsVisible: false },
-  });
-  liqSeriesLong  = liqChart.addHistogramSeries({ color: 'rgba(16,185,129,0.7)',  priceFormat: { type: 'volume' }, base: 0 });
-  liqSeriesShort = liqChart.addHistogramSeries({ color: 'rgba(239,68,68,0.7)',   priceFormat: { type: 'volume' }, base: 0 });
-
-  // Sync timescales — price, CVD, LIQ
+  // Sync timescales — price & CVD
   let syncLock = false;
   const syncAll = (source, range) => {
     if (syncLock || !range) return;
     syncLock = true;
-    [priceChart, cvdChart, liqChart].forEach(c => { if (c !== source) c.timeScale().setVisibleLogicalRange(range); });
+    [priceChart, cvdChart].forEach(c => { if (c !== source) c.timeScale().setVisibleLogicalRange(range); });
     syncLock = false;
   };
   priceChart.timeScale().subscribeVisibleLogicalRangeChange(r => syncAll(priceChart, r));
   cvdChart.timeScale().subscribeVisibleLogicalRangeChange(r => syncAll(cvdChart, r));
-  liqChart.timeScale().subscribeVisibleLogicalRangeChange(r => syncAll(liqChart, r));
 
   // Crosshair overlay
   priceChart.subscribeCrosshairMove(param => {
@@ -657,7 +637,7 @@ function initCharts() {
   });
 
   const ro = new ResizeObserver(() => resizeCharts());
-  ro.observe(pe); ro.observe(ce); ro.observe(le);
+  ro.observe(pe); ro.observe(ce);
 
   isChartsInited = true;
 }
@@ -666,10 +646,8 @@ function resizeCharts() {
   if (!priceChart || !cvdChart) return;
   const pe = document.getElementById('priceChart');
   const ce = document.getElementById('cvdChart');
-  const le = document.getElementById('liqChart');
   if (pe.clientWidth > 0 && pe.clientHeight > 0) priceChart.resize(pe.clientWidth, pe.clientHeight);
   if (ce.clientWidth > 0 && ce.clientHeight > 0) cvdChart.resize(ce.clientWidth, ce.clientHeight);
-  if (le && liqChart && le.clientWidth > 0 && le.clientHeight > 0) liqChart.resize(le.clientWidth, le.clientHeight);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -967,19 +945,8 @@ function updateCards(ticker, rawKlines) {
     set('cImbalSub', `<span style="color:${imbalColor}">${imbalLabel}</span>`);
   }
 
-  // Liquidations summary
-  if (liquidations.length) {
-    const totalLong  = liquidations.reduce((s,l)=>s+l.long,  0);
-    const totalShort = liquidations.reduce((s,l)=>s+l.short, 0);
-    const dominant   = totalLong > totalShort ? 'long' : 'short';
-    const domVal     = dominant === 'long' ? totalLong : totalShort;
-    set('cLiq', `<span style="color:${dominant==='long'?'var(--red)':'var(--green)'}">${(domVal).toFixed(1)} BTC</span>`);
-    set('cLiqSub', `<span class="dim">Long: ${totalLong.toFixed(1)} · Short: ${totalShort.toFixed(1)}</span>`);
-  } else {
-    set('cLiq', '<span class="dim">—</span>');
-    set('cLiqSub', '<span style="color:var(--t3);font-size:9px">Через проксі</span>');
-  }
 }
+
 
 function updateAnomalyBanner() {
   const box    = document.getElementById('anomBox');
@@ -1079,20 +1046,6 @@ async function loadAll() {
 
     fetchFutures().then(f => { if (f) { futures = f; } });
 
-    // Ліквідації
-    fetchLiquidations(currentTF).then(liq => {
-      liquidations = liq;
-      updateCards(ticker, rawKlines);
-      if (liq.length && liqSeriesLong && liqSeriesShort) {
-        liqSeriesLong.setData( liq.map(l => ({ time: l.time, value: l.long  })));
-        liqSeriesShort.setData(liq.map(l => ({ time: l.time, value: l.short })));
-        const total = liq.reduce((s,l)=>s+l.long+l.short, 0);
-        set('liqLive', `Всього: <b style="color:var(--yellow)">${total.toFixed(1)} BTC</b>`);
-      } else {
-        set('liqLive', '<span style="color:var(--t3);font-size:9px">Недоступно (CORS)</span>');
-      }
-    });
-
     setLive();
   } catch(e) {
     setErr(e.message);
@@ -1190,29 +1143,35 @@ async function testTgMessage() {
 // Викликається після кожного оновлення аномалій
 async function checkAndNotifyTg(newAnomalies) {
   if (!tgSettings.token || !tgSettings.chatId) return;
-  if (currentTF !== '4h') return; // тільки для H4
+
+  const isH4  = currentTF === '4h';
+  const isM15 = currentTF === '15m';
+  const isH1  = currentTF === '1h';
+  if (!isH4 && !isM15 && !isH1) return;
 
   for (const a of newAnomalies) {
-    if (a.tier !== 'high') continue;          // тільки HIGH tier
-    if (tgSentTimes.has(a.time)) continue;    // вже надсилали для цієї свічки
+    // M15/H1 — тільки HIGH; H4 — всі
+    if (!isH4 && a.tier !== 'high') continue;
+    if (tgSentTimes.has(a.time)) continue;
 
     tgSentTimes.add(a.time);
-    // Зберігаємо в localStorage (обрізаємо до 200 записів)
     const arr = Array.from(tgSentTimes).slice(-200);
     localStorage.setItem(TG_SENT_KEY, JSON.stringify(arr));
 
-    const isBuy  = a.severity === 'buy';
-    const emoji  = isBuy ? '🟢' : '🔴';
-    const action = isBuy ? 'BUY SIGNAL ▲' : 'SELL SIGNAL ▼';
-    const time   = new Date(a.time * 1000).toLocaleString('uk-UA', { timeZone: 'Europe/Kiev' });
-    const isConf = a.desc.includes('підтв.');
+    const isBuy    = a.severity === 'buy';
+    const emoji    = isBuy ? '🟢' : '🔴';
+    const action   = isBuy ? 'BUY SIGNAL ▲' : 'SELL SIGNAL ▼';
+    const time     = new Date(a.time * 1000).toLocaleString('uk-UA', { timeZone: 'Europe/Kiev' });
+    const isConf   = a.desc.includes('підтв.');
+    const tfLabel  = { '15m': 'M15', '1h': 'H1', '4h': 'H4' }[currentTF];
+    const tierLabel = a.tier === 'high' ? '🔴 HIGH' : a.tier === 'mid' ? '🟡 MID' : '⚪ LOW';
 
     const msg =
-      `${emoji} <b>BTCUSDT H4 — ${action}</b>\n` +
+      `${emoji} <b>BTCUSDT ${tfLabel} — ${action}</b>\n` +
       `━━━━━━━━━━━━━━\n` +
       `📌 <b>${a.label}</b>${isConf ? ' ✓ підтверджено' : ''}\n` +
       `📊 ${a.desc}\n` +
-      `⚡ Tier: <b>HIGH</b>${a.isImpulse ? ' · IMPULSE' : ''}\n` +
+      `⚡ Tier: <b>${tierLabel}</b>${a.isImpulse ? ' · IMPULSE' : ''}\n` +
       `🕐 Свічка: ${time}\n` +
       `━━━━━━━━━━━━━━\n` +
       `<i>BTC Anomaly Detector</i>`;
