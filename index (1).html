@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTC · Anomaly Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root {
+  --bg:      #060810;
+  --surface: #0c1120;
+  --card:    #101828;
+  --border:  #1c2740;
+  --border2: #111927;
+  --t1:      #e2e8f0;
+  --t2:      #6b7fa3;
+  --t3:      #2a3448;
+  --blue:    #3b82f6;
+  --green:   #10b981;
+  --red:     #ef4444;
+  --yellow:  #f59e0b;
+  --purple:  #8b5cf6;
+  --mono:    'JetBrains Mono', monospace;
+  --sans:    'Inter', system-ui, sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--t1);
+  min-height: 100vh;
+  padding: 12px 14px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.page-wrap {
+  width: 100%;
+  max-width: 1760px;
+}
+
+/* ── HEADER ─────────────────────────── */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-mark {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+.logo-name { font-size: 13px; font-weight: 600; color: var(--t1); }
+.logo-sub  { font-size: 9px; color: var(--t2); font-family: var(--mono); margin-top: 1px; letter-spacing: .5px; }
+
+.header-right { display: flex; align-items: center; gap: 10px; }
+.status-block { text-align: right; }
+.status-row { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--t3); }
+.dot.live { background: var(--green); animation: blink 2.5s ease-in-out infinite; }
+.dot.err  { background: var(--red); }
+.dot.busy { background: var(--yellow); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+#statusTxt { font-size:11px; font-family:var(--mono); color: var(--t2); }
+#srcTxt    { font-size:10px; color:var(--t3); margin-top:2px; font-family:var(--mono); }
+#timeTxt   { font-size:10px; color:var(--t3); font-family:var(--mono); }
+
+/* ── TF SWITCHER ────────────────────── */
+.tf-group {
+  display: flex;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px;
+}
+.tf-btn {
+  background: transparent;
+  color: var(--t2);
+  border: none;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: .3px;
+  transition: all .15s;
+}
+.tf-btn:hover { color: var(--t1); background: var(--border); }
+.tf-btn.active {
+  background: var(--blue);
+  color: #fff;
+}
+
+/* ── GRIDSTACK ───────────────────────── */
+.grid-stack { background: transparent; }
+.grid-stack-item-content {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.gs-drag-handle {
+  cursor: grab;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  user-select: none;
+  flex-shrink: 0;
+}
+.gs-drag-handle:active { cursor: grabbing; }
+.drag-dots { display: flex; flex-direction: column; gap: 2px; opacity: .22; transition: opacity .2s; }
+.gs-drag-handle:hover .drag-dots { opacity: .55; }
+.drag-row { display: flex; gap: 2px; }
+.drag-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--t2); }
+.handle-title { font-size: 10px; font-family: var(--mono); color: var(--t2); letter-spacing: .5px; flex: 1; }
+.handle-title b { color: var(--t1); }
+.panel-body { flex: 1; overflow: auto; min-height: 0; }
+
+/* ── CARDS ───────────────────────────── */
+.cards-inner {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: 100%;
+}
+.card {
+  background: var(--card);
+  border-right: 1px solid var(--border2);
+  padding: 12px 14px;
+  position: relative; overflow: hidden;
+}
+.card:last-child { border-right: none; }
+.card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
+.card-lbl { font-size: 9px; font-family: var(--mono); color: var(--t1); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.card-val { font-family: var(--mono); font-size: 19px; font-weight: 700; color: var(--t1); line-height: 1; }
+.card-sub { font-size: 10px; margin-top: 4px; font-family: var(--mono); }
+.up   { color: var(--green); }
+.down { color: var(--red); }
+.neu  { color: var(--yellow); }
+.dim  { color: var(--t2); }
+
+/* ── ANOMALY BANNER ──────────────────── */
+.anom-inner { padding: 12px 16px; height: 100%; transition: background .5s, box-shadow .5s; }
+.a-ok    { background: #050e0a; }
+.a-info  { background: #050a18; }
+.a-warn  { background: #130e04; }
+.a-alert { background: #13050a; animation: glow-red 3s ease-in-out infinite; }
+.a-buy-state {
+  background: linear-gradient(120deg, #082218, #050e0a 65%);
+  box-shadow: inset 0 0 0 1px rgba(16,185,129,.2);
+}
+.a-sell-state {
+  background: linear-gradient(120deg, #260a12, #13050a 65%);
+  box-shadow: inset 0 0 0 1px rgba(239,68,68,.2);
+}
+@keyframes glow-red {
+  0%,100% { box-shadow: inset 0 0 0 0 rgba(239,68,68,0); }
+  50%      { box-shadow: inset 0 0 40px 0px rgba(239,68,68,.06); }
+}
+.anom-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.anom-title { font-size: 13px; font-weight: 600; color: var(--t1); flex: 1; }
+.badge { font-size: 9px; font-weight: 700; font-family: var(--mono); padding: 3px 9px; border-radius: 20px; letter-spacing: .8px; }
+.b-ok   { background:#0a2818; color:var(--green); }
+.b-info { background:#0a1a3a; color:var(--blue); }
+.b-warn { background:#302506; color:var(--yellow); }
+.b-alrt { background:#300a14; color:var(--red); }
+.anom-desc   { font-size: 12px; color: var(--t2); line-height: 1.55; }
+.anom-signal { font-size: 11px; font-weight: 600; color: var(--t1); margin-top: 5px; }
+
+/* ── CHART ───────────────────────────── */
+.chart-area { display: flex; flex-direction: column; height: 100%; }
+.chart-tags { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.chart-tag  { font-family: var(--mono); font-size: 10px; color: var(--t2); letter-spacing: .4px; }
+.chart-tag b { color: var(--t1); }
+.candle-info {
+  font-family: var(--mono); font-size: 10px; color: var(--t2);
+  margin-left: auto; display: flex; gap: 10px;
+}
+.chart-divider { height: 1px; background: var(--border2); flex-shrink: 0; }
+.chart-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border2);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.cvd-header {
+  display: flex; align-items: center; gap: 12px;
+  flex-shrink: 0; padding: 5px 12px;
+  border-bottom: 1px solid var(--border2);
+}
+#priceChart, #cvdChart { flex-shrink: 0; }
+
+
+/* Pulse highlight ring shown over chart on hover-sync, positioned via JS */
+#pulseRing {
+  position: absolute;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity .15s;
+  z-index: 5;
+}
+#pulseRing.active { animation: pulse-ring 1s ease-out infinite; opacity: 1; }
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 currentColor; opacity: .9; }
+  70%  { box-shadow: 0 0 0 12px transparent; opacity: 0; }
+  100% { box-shadow: 0 0 0 12px transparent; opacity: 0; }
+}
+#priceChart, #cvdChart { position: relative; }
+
+/* ── SIGNAL LEGEND ────────────────────── */
+.signal-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+.sig-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--t2);
+}
+.sig-arrow {
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* ── RULES ───────────────────────────── */
+.rules-inner { padding: 12px 14px; height: 100%; overflow: auto; }
+.rules-list  { display: flex; flex-direction: column; gap: 8px; }
+.rule {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px 13px;
+}
+.rule-name { font-size: 11px; font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+.rule-name .arrow { font-size: 14px; }
+.rule-cond { font-size: 10px; color: var(--t3); line-height: 1.6; font-family: var(--mono); }
+.rule-signal { font-size: 10px; font-weight: 600; margin-top: 5px; font-family: var(--mono); }
+.rule-buy  { color: var(--green); }
+.rule-sell { color: var(--red); }
+.rule-border-buy  { border-color: rgba(16,185,129,.25); }
+.rule-border-sell { border-color: rgba(239,68,68,.25); }
+
+/* ── LOG ─────────────────────────────── */
+.log-inner { padding: 12px 14px; height: 100%; overflow: auto; }
+.log-list  { display: flex; flex-direction: column; gap: 5px; }
+.log-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 7px 9px;
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: 7px; font-size: 11px;
+  cursor: pointer;
+  transition: transform .12s, border-color .12s, background .12s;
+}
+.log-time { font-family:var(--mono); color:var(--t3); white-space:nowrap; }
+.log-text { color: var(--t2); line-height: 1.4; }
+
+/* Intensity tiers driven by volume size */
+.log-item.buy-signal.tier-low    { border-color: rgba(16,185,129,.12); background: var(--bg); }
+.log-item.buy-signal.tier-mid    { border-color: rgba(16,185,129,.30); background: #061c12; }
+.log-item.buy-signal.tier-high   { border-color: rgba(16,185,129,.6);  background: #08291a; box-shadow: 0 0 0 1px rgba(16,185,129,.15); }
+.log-item.sell-signal.tier-low   { border-color: rgba(239,68,68,.12); background: var(--bg); }
+.log-item.sell-signal.tier-mid   { border-color: rgba(239,68,68,.30); background: #1c0a0d; }
+.log-item.sell-signal.tier-high  { border-color: rgba(239,68,68,.6);  background: #2a0a10; box-shadow: 0 0 0 1px rgba(239,68,68,.15); }
+
+.log-item.tier-low  { opacity: .65; }
+.log-item.tier-mid  { opacity: .85; }
+.log-item.tier-high { opacity: 1; }
+
+.log-item:hover, .log-item.log-active {
+  transform: translateX(2px);
+  border-color: var(--t2) !important;
+  opacity: 1 !important;
+}
+.priority-tag {
+  font-size: 8px; font-family: var(--mono); font-weight: 700;
+  padding: 1px 5px; border-radius: 4px; letter-spacing: .4px;
+  margin-left: 6px; vertical-align: middle;
+}
+.priority-high { background: rgba(245,158,11,.15); color: var(--yellow); }
+
+.liq-long  { color: var(--green); }
+.liq-short { color: var(--red); }
+
+/* ── CONTROLS ─────────────────────────── */
+.btn {
+  background: #0f1f40; color: #7aa0d4;
+  border: 1px solid #1a3060; padding: 4px 10px;
+  border-radius: 6px; cursor: pointer;
+  font-size: 11px; font-family: var(--mono); font-weight: 600;
+  transition: background .2s;
+}
+.btn:hover:not(:disabled) { background: #1a3060; }
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+.spinner {
+  display: inline-block; width: 10px; height: 10px;
+  border: 2px solid #1a3060; border-top-color: #7aa0d4;
+  border-radius: 50%; animation: rot .65s linear infinite;
+  margin-right: 5px; vertical-align: middle;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+<header>
+  <div class="logo">
+    <div class="logo-mark">⚡</div>
+    <div>
+      <div class="logo-name">BTC Anomaly Detector</div>
+      <div class="logo-sub">BINANCE SPOT · CVD · ABSORPTION</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <!-- TELEGRAM SETTINGS PANEL -->
+    <div id="tgPanel" style="display:none; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 10px; flex-wrap:wrap;">
+      <span style="font-size:10px;font-family:var(--mono);color:var(--t2);">BOT TOKEN</span>
+      <input id="tgToken" type="password" placeholder="123456:ABC-DEF..." style="width:150px;background:var(--bg);border:1px solid var(--border);color:var(--t1);font-family:var(--mono);font-size:10px;padding:3px 7px;border-radius:5px;outline:none;">
+      <span style="font-size:10px;font-family:var(--mono);color:var(--t2);">CHAT ID</span>
+      <input id="tgChatId" type="text" placeholder="-100123456789" style="width:130px;background:var(--bg);border:1px solid var(--border);color:var(--t1);font-family:var(--mono);font-size:10px;padding:3px 7px;border-radius:5px;outline:none;">
+      <button class="btn" onclick="saveTgSettings()" style="font-size:10px;padding:3px 9px;">💾 Зберегти</button>
+      <button class="btn" onclick="testTgMessage()" style="font-size:10px;padding:3px 9px;color:var(--yellow);">📤 Тест</button>
+    </div>
+    <!-- TG STATUS TOGGLE -->
+    <div id="tgStatusWrap" onclick="toggleTgPanel()" title="Налаштування Telegram сповіщень"
+         style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:4px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;">
+      <div id="tgDot" style="width:7px;height:7px;border-radius:50%;background:var(--t3);transition:background .3s;"></div>
+      <span id="tgStatusTxt" style="font-size:10px;font-family:var(--mono);color:var(--t3);">TG</span>
+    </div>
+    <div class="status-block">
+      <div class="status-row">
+        <div class="dot busy" id="dot"></div>
+        <span id="statusTxt" style="color:var(--yellow)">Завантаження...</span>
+      </div>
+    </div>
+    <button class="btn" id="refreshBtn" onclick="loadAll()">↻</button>
+  </div>
+</header>
+
+<div class="grid-stack">
+
+  <!-- METRIC CARDS -->
+  <div class="grid-stack-item" gs-x="0" gs-y="0" gs-w="12" gs-h="3" gs-min-h="3">
+    <div class="grid-stack-item-content">
+      <div class="gs-drag-handle">
+        <div class="drag-dots"><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div></div>
+        <span class="handle-title">МЕТРИКИ</span>
+      </div>
+      <div class="panel-body" style="overflow:hidden">
+        <div class="cards-inner">
+          <div class="card">
+            <div class="card-lbl">BTC / USDT</div>
+            <div class="card-val" id="cPrice">—</div>
+            <div class="card-sub" id="cPriceSub">—</div>
+          </div>
+          <div class="card">
+            <div class="card-lbl">CVD · Сесія</div>
+            <div class="card-val" id="cCVD">—</div>
+            <div class="card-sub" id="cCVDSub">—</div>
+          </div>
+          <div class="card">
+            <div class="card-lbl">Imbalance Ratio</div>
+            <div class="card-val" id="cImbal">—</div>
+            <div class="card-sub" id="cImbalSub">—</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANOMALY BANNER -->
+  <div class="grid-stack-item" gs-x="0" gs-y="3" gs-w="12" gs-h="3" gs-min-h="3">
+    <div class="grid-stack-item-content">
+      <div class="gs-drag-handle">
+        <div class="drag-dots"><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div></div>
+        <span class="handle-title">СТАТУС СИГНАЛУ</span>
+        <span id="anomBadge"><span class="badge b-ok">—</span></span>
+      </div>
+      <div class="panel-body">
+        <div class="anom-inner a-ok" id="anomBox">
+          <div class="anom-row">
+            <span id="anomIcon" style="font-size:15px">🔍</span>
+            <span class="anom-title" id="anomTitle">Завантаження...</span>
+          </div>
+          <div class="anom-desc"   id="anomDesc">Отримую дані з Binance Spot API...</div>
+          <div class="anom-signal" id="anomSignal"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="grid-stack-item" gs-x="0" gs-y="6" gs-w="8" gs-h="23" gs-min-h="8">
+    <div class="grid-stack-item-content">
+      <div class="gs-drag-handle">
+        <div class="drag-dots"><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div></div>
+        <div class="chart-tags">
+          <span class="chart-tag"><b>BTCUSDT</b></span>
+          <span class="chart-tag" id="tfLabel">15м · Свічки</span>
+          <span class="chart-tag">Binance Spot</span>
+        </div>
+        <div class="candle-info" id="candleInfo">
+          <span>O: —</span><span>H: —</span><span>L: —</span><span>C: —</span>
+        </div>
+      </div>
+      <div class="chart-toolbar">
+        <div class="tf-group">
+          <button class="tf-btn" onclick="setTF('5m')"  id="tf-5m">M5</button>
+          <button class="tf-btn active" onclick="setTF('15m')" id="tf-15m">M15</button>
+          <button class="tf-btn" onclick="setTF('1h')"  id="tf-1h">H1</button>
+          <button class="tf-btn" onclick="setTF('4h')"  id="tf-4h">H4</button>
+        </div>
+        <div class="signal-legend">
+          <div class="sig-item"><span class="sig-arrow" style="color:var(--green)">▲</span>Абсорб. шортів (BUY)</div>
+          <div class="sig-item"><span class="sig-arrow" style="color:var(--red)">▼</span>Абсорб. лонгів (SELL)</div>
+        </div>
+      </div>
+      <div class="panel-body" style="overflow:hidden; display:flex; flex-direction:column;">
+        <div id="priceChart" style="flex:2; min-height:0;"></div>
+        <div class="chart-divider"></div>
+        <div class="cvd-header">
+          <span class="chart-tag"><b>CVD</b></span>
+          <span class="chart-tag">Cumulative Volume Delta</span>
+          <span class="chart-tag" id="cvdLive" style="color:var(--t3)">—</span>
+        </div>
+        <div id="cvdChart" style="flex:1; min-height:0;"></div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="grid-stack-item" gs-x="8" gs-y="6" gs-w="4" gs-h="13" gs-min-h="5">
+    <div class="grid-stack-item-content">
+      <div class="gs-drag-handle">
+        <div class="drag-dots"><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div></div>
+        <span class="handle-title">🚨 ЛОГ СИГНАЛІВ</span>
+      </div>
+      <div class="panel-body">
+        <div class="log-inner">
+          <div class="log-list" id="anomLog">
+            <div class="log-item"><span class="log-time">—</span><span class="log-text">Завантаження...</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RULES -->
+  <div class="grid-stack-item" gs-x="8" gs-y="19" gs-w="4" gs-h="10" gs-min-h="5">
+    <div class="grid-stack-item-content">
+      <div class="gs-drag-handle">
+        <div class="drag-dots"><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div><div class="drag-row"><div class="drag-dot"></div><div class="drag-dot"></div></div></div>
+        <span class="handle-title">📋 ПРАВИЛА ДЕТЕКЦІЇ</span>
+      </div>
+      <div class="panel-body">
+        <div class="rules-inner">
+          <div class="rules-list">
+
+            <div class="rule rule-border-buy">
+              <div class="rule-name">
+                <span class="arrow" style="color:var(--green)">▲</span>
+                <span style="color:var(--green)">Абсорбування шортів</span>
+              </div>
+              <div class="rule-cond">
+                Об'єм продажів (CVD delta &lt; 0) великий, але ціна НЕ падає (±&lt;0.08%)<br>
+                → Великий покупець поглинає всі продажі, утримуючи ціну
+              </div>
+              <div class="rule-signal rule-buy">⚡ Сигнал BUY — ▲ зелена стрілка на графіку</div>
+            </div>
+
+            <div class="rule rule-border-sell">
+              <div class="rule-name">
+                <span class="arrow" style="color:var(--red)">▼</span>
+                <span style="color:var(--red)">Абсорбування лонгів</span>
+              </div>
+              <div class="rule-cond">
+                Об'єм покупок (CVD delta &gt; 0) великий, але ціна НЕ росте (±&lt;0.08%)<br>
+                → Великий продавець поглинає всі покупки, стримуючи ціну
+              </div>
+              <div class="rule-signal rule-sell">⚡ Сигнал SELL — ▼ червона стрілка на графіку</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div><!-- /page-wrap -->
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  GRIDSTACK
+// ═══════════════════════════════════════════════════════
+const grid = GridStack.init({
+  column: 12,
+  cellHeight: 40,
+  margin: 8,
+  handle: '.gs-drag-handle',
+  resizable: { handles: 'se,sw,ne,nw,e,w,n,s' },
+  animate: true,
+});
+grid.on('resizestop', () => resizeCharts());
+
+// ═══════════════════════════════════════════════════════
+//  CONSTANTS & STATE
+// ═══════════════════════════════════════════════════════
+const BINANCE = 'https://api.binance.com';
+const FAPI    = 'https://fapi.binance.com';
+const SYM     = 'BTCUSDT';
+
+const TF_CONFIG = {
+  '5m':  { label: '5м · Свічки',  limit: 96  },
+  '15m': { label: '15м · Свічки', limit: 96  },
+  '1h':  { label: '1г · Свічки',  limit: 96  },
+  '4h':  { label: '4г · Свічки',  limit: 96  },
+};
+
+let currentTF   = '15m';
+let priceChart, cvdChart, liqChart, candleSeries, cvdSeries, liqSeriesLong, liqSeriesShort;
+let klineData = [], cvdPoints = [], anomalies = [], liquidations = [];
+let futures = {};
+let isChartsInited = false;
+
+// ═══════════════════════════════════════════════════════
+//  TF SWITCH
+// ═══════════════════════════════════════════════════════
+function setTF(tf) {
+  if (tf === currentTF) return;
+  currentTF = tf;
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tf-' + tf).classList.add('active');
+  document.getElementById('tfLabel').textContent = TF_CONFIG[tf].label;
+  loadAll();
+}
+
+// ═══════════════════════════════════════════════════════
+//  CHART INIT & RESIZE
+// ═══════════════════════════════════════════════════════
+function initCharts() {
+  const common = {
+    layout: {
+      background: { color: '#0c1120' },
+      textColor: '#3a4a60',
+      fontFamily: "'JetBrains Mono', monospace",
+    },
+    grid: {
+      vertLines: { color: '#0f1828', style: 1 },
+      horzLines: { color: '#0f1828', style: 1 },
+    },
+    crosshair: { mode: 1 },
+    rightPriceScale: { borderColor: '#1c2740' },
+    timeScale: { borderColor: '#1c2740', timeVisible: true, secondsVisible: false },
+    handleScroll: true,
+    handleScale: true,
+  };
+
+  const pe = document.getElementById('priceChart');
+  const ce = document.getElementById('cvdChart');
+
+  priceChart = LightweightCharts.createChart(pe, { ...common, width: pe.clientWidth, height: pe.clientHeight || 260 });
+  candleSeries = priceChart.addCandlestickSeries({
+    upColor: '#10b981', downColor: '#ef4444',
+    borderUpColor: '#10b981', borderDownColor: '#ef4444',
+    wickUpColor: '#10b981', wickDownColor: '#ef4444',
+  });
+
+  cvdChart = LightweightCharts.createChart(ce, { ...common, width: ce.clientWidth, height: ce.clientHeight || 120 });
+  cvdSeries = cvdChart.addBaselineSeries({
+    baseValue: { type: 'price', price: 0 },
+    topLineColor: '#10b981', topFillColor1: 'rgba(16,185,129,0.22)', topFillColor2: 'rgba(16,185,129,0.04)',
+    bottomLineColor: '#ef4444', bottomFillColor1: 'rgba(239,68,68,0.04)', bottomFillColor2: 'rgba(239,68,68,0.22)',
+    lineWidth: 2,
+  });
+
+  // Sync timescales — price & CVD
+  let syncLock = false;
+  const syncAll = (source, range) => {
+    if (syncLock || !range) return;
+    syncLock = true;
+    [priceChart, cvdChart].forEach(c => { if (c !== source) c.timeScale().setVisibleLogicalRange(range); });
+    syncLock = false;
+  };
+  priceChart.timeScale().subscribeVisibleLogicalRangeChange(r => syncAll(priceChart, r));
+  cvdChart.timeScale().subscribeVisibleLogicalRangeChange(r => syncAll(cvdChart, r));
+
+  // Crosshair overlay
+  priceChart.subscribeCrosshairMove(param => {
+    const bar = param.seriesData?.get(candleSeries);
+    if (bar) {
+      const fmt = n => Number(n).toLocaleString('en-US', {maximumFractionDigits: 0});
+      document.getElementById('candleInfo').innerHTML = `
+        <span style="color:#4a5568">O:<span style="color:#aab"> ${fmt(bar.open)}</span></span>
+        <span style="color:#4a5568">H:<span style="color:var(--green)"> ${fmt(bar.high)}</span></span>
+        <span style="color:#4a5568">L:<span style="color:var(--red)"> ${fmt(bar.low)}</span></span>
+        <span style="color:#4a5568">C:<span style="color:var(--t1)"> ${fmt(bar.close)}</span></span>`;
+    }
+    // Hover-sync: chart → log highlight
+    if (param.time != null) {
+      highlightLogByTime(param.time);
+    } else {
+      clearLogHighlight();
+    }
+  });
+
+  const ro = new ResizeObserver(() => resizeCharts());
+  ro.observe(pe); ro.observe(ce);
+
+  isChartsInited = true;
+}
+
+function resizeCharts() {
+  if (!priceChart || !cvdChart) return;
+  const pe = document.getElementById('priceChart');
+  const ce = document.getElementById('cvdChart');
+  if (pe.clientWidth > 0 && pe.clientHeight > 0) priceChart.resize(pe.clientWidth, pe.clientHeight);
+  if (ce.clientWidth > 0 && ce.clientHeight > 0) cvdChart.resize(ce.clientWidth, ce.clientHeight);
+}
+
+// ═══════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════
+async function fetchSpot(path) {
+  const r = await fetch(BINANCE + path, { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+const PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://api.codetabs.com/v1/proxy?quest=',
+  'https://thingproxy.freeboard.io/fetch/',
+];
+
+async function fetchWithProxyFallback(targetUrl, timeoutMs = 7000) {
+  for (const proxy of PROXIES) {
+    try {
+      const url = proxy.includes('thingproxy')
+        ? proxy + targetUrl
+        : proxy + encodeURIComponent(targetUrl);
+      const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (r.ok) return await r.json();
+    } catch { /* try next proxy */ }
+  }
+  return null;
+}
+
+async function fetchFutures() {
+  try {
+    const [oi, ls] = await Promise.all([
+      fetchWithProxyFallback(`${FAPI}/fapi/v1/openInterest?symbol=${SYM}`),
+      fetchWithProxyFallback(`${FAPI}/futures/data/topLongShortPositionRatio?symbol=${SYM}&period=5m&limit=1`),
+    ]);
+    if (!oi) return null;
+    return {
+      oi:     parseFloat(oi.openInterest),
+      longR:  parseFloat(ls?.[0]?.longAccount ?? 0.5),
+      shortR: parseFloat(ls?.[0]?.shortAccount ?? 0.5),
+    };
+  } catch { return null; }
+}
+
+// ═══════════════════════════════════════════════════════
+//  IMBALANCE RATIO (з kline даних)
+// ═══════════════════════════════════════════════════════
+function calcImbalance(raw) {
+  // Береться середній imbalance за останні N свічок
+  const slice = raw.slice(-20);
+  let totalBuy = 0, totalSell = 0;
+  slice.forEach(k => {
+    const vol     = parseFloat(k[5]);
+    const buyVol  = parseFloat(k[9]);
+    const sellVol = vol - buyVol;
+    totalBuy  += buyVol;
+    totalSell += sellVol;
+  });
+  const ratio = totalSell > 0 ? totalBuy / totalSell : 1;
+  return { ratio, totalBuy, totalSell };
+}
+
+// ═══════════════════════════════════════════════════════
+//  LIQUIDATIONS (Binance Futures через проксі)
+// ═══════════════════════════════════════════════════════
+async function fetchLiquidations(tf) {
+  // Binance forceOrders: повертає останні примусові ліквідації
+  const url = `${FAPI}/fapi/v1/allForceOrders?symbol=${SYM}&limit=200`;
+  const data = await fetchWithProxyFallback(url, 8000);
+  if (!Array.isArray(data)) return [];
+
+  // Агрегуємо по свічках поточного TF
+  const tfMs = { '5m': 300000, '15m': 900000, '1h': 3600000, '4h': 14400000 };
+  const interval = tfMs[tf] || 900000;
+  const buckets = {};
+
+  data.forEach(o => {
+    const ts    = parseInt(o.time || o.transactTime || o.updateTime);
+    const bucket = Math.floor(ts / interval) * interval / 1000;
+    const qty   = parseFloat(o.origQty || o.executedQty || 0);
+    const side  = o.side; // BUY = ліквідація шорту, SELL = ліквідація лонгу
+    if (!buckets[bucket]) buckets[bucket] = { time: bucket, long: 0, short: 0 };
+    if (side === 'BUY')  buckets[bucket].short += qty; // short liq
+    else                 buckets[bucket].long  += qty; // long liq
+  });
+
+  return Object.values(buckets).sort((a, b) => a.time - b.time);
+}
+
+async function fetchOIHistory(tf) {
+  // OI history period mirrors chart TF where possible
+  const periodMap = { '5m':'5m', '15m':'15m', '1h':'1h', '4h':'4h' };
+  const period = periodMap[tf] || '15m';
+  const data = await fetchWithProxyFallback(
+    `${FAPI}/futures/data/openInterestHist?symbol=${SYM}&period=${period}&limit=96`, 8000
+  );
+  if (!Array.isArray(data)) return [];
+  return data.map(d => ({
+    time: Math.floor(d.timestamp / 1000),
+    value: parseFloat(d.sumOpenInterest),
+  }));
+}
+
+// ═══════════════════════════════════════════════════════
+//  CVD
+// ═══════════════════════════════════════════════════════
+function calcCVD(raw) {
+  let cum = 0;
+  return raw.map((k, i) => {
+    const vol    = parseFloat(k[5]);
+    const buyVol = parseFloat(k[9]);
+    const delta  = buyVol - (vol - buyVol);
+    if (i === 0) cum = 0;
+    cum += delta;
+    return { time: Math.floor(parseInt(k[0]) / 1000), value: cum, delta, buyVol, sellVol: vol - buyVol };
+  });
+}
+
+function formatCandles(raw) {
+  return raw.map(k => ({
+    time:      Math.floor(parseInt(k[0]) / 1000),
+    closeTime: Math.floor(parseInt(k[6]) / 1000), // closeTime в секундах
+    open:      parseFloat(k[1]),
+    high:      parseFloat(k[2]),
+    low:       parseFloat(k[3]),
+    close:     parseFloat(k[4]),
+    volume:    parseFloat(k[5]),
+  }));
+}
+
+// ═══════════════════════════════════════════════════════
+//  ANOMALY DETECTION — тільки 2 типи абсорбування
+// ═══════════════════════════════════════════════════════
+function volumeTier(absDelta, avgAbsDelta) {
+  const ratio = avgAbsDelta > 0 ? absDelta / avgAbsDelta : 1;
+  if (ratio >= 1.8) return 'high';
+  if (ratio >= 1.0) return 'mid';
+  return 'low';
+}
+
+function detectAnomalies(candles, cvd) {
+  const found = [];
+
+  for (let i = 5; i < candles.length; i++) {
+    const c    = candles[i];
+    const prev = candles[i - 1];
+    const d    = cvd[i];
+    const pChg = Math.abs((c.close - prev.close) / prev.close * 100);
+
+    // Середній абсолютний delta за останні 10 свічок (контекст)
+    const avgAbsDelta = cvd.slice(Math.max(0, i - 10), i)
+      .reduce((s, x) => s + Math.abs(x.delta), 0) / 10;
+
+    // Поріг: ціна майже не рухається
+    const priceFlat = pChg < 0.08;
+    // Поріг: об'єм значний (більше 60% середнього)
+    const bigVolume = Math.abs(d.delta) > avgAbsDelta * 0.6;
+    const tier = volumeTier(Math.abs(d.delta), avgAbsDelta);
+    // Проксі для "імпульсу за короткий час": весь обʼєм delta зосереджений
+    // переважно в напрямку buy/sell цієї ж свічки (а не розмазаний по сусідніх)
+    const prevDelta = cvd[i - 1]?.delta ?? 0;
+    const isImpulse = Math.abs(d.delta) > Math.abs(prevDelta) * 2 && tier === 'high';
+
+    // Imbalance за останні 5 свічок контексту
+    const recentBuy  = cvd.slice(Math.max(0, i-5), i).reduce((s,x)=>s+x.buyVol,0);
+    const recentSell = cvd.slice(Math.max(0, i-5), i).reduce((s,x)=>s+x.sellVol,0);
+    const imbalRatio = recentSell > 0 ? recentBuy / recentSell : 1;
+    // Ratio < 0.75 = домінують продавці, > 1.35 = домінують покупці
+    const sellDominant = imbalRatio < 0.75;
+    const buyDominant  = imbalRatio > 1.35;
+
+    let anomaly = null;
+
+    // АБСОРБУВАННЯ ШОРТІВ: delta < 0, ціна стоїть, і продавці домінують — сильніший сигнал
+    if (d.delta < 0 && priceFlat && bigVolume) {
+      const confirmed = sellDominant; // imbalance підтверджує
+      anomaly = {
+        time: c.time, closeTime: c.closeTime, type: 'absorb_shorts',
+        icon: '▲', label: 'Абсорб. шортів',
+        desc: `Продаж ${Math.abs(d.delta).toFixed(0)} BTC, ціна ±${pChg.toFixed(2)}% — поглинання${confirmed ? ' ✓ підтв.' : ''}`,
+        mPos: 'belowBar', mColor: confirmed ? '#00ff9d' : '#10b981', mShape: 'arrowUp',
+        severity: 'buy', tier: confirmed && tier === 'mid' ? 'high' : tier, isImpulse,
+        volAbs: Math.abs(d.delta), imbalRatio,
+      };
+    }
+    // АБСОРБУВАННЯ ЛОНГІВ: delta > 0, ціна стоїть, і покупці домінують — сильніший сигнал
+    else if (d.delta > 0 && priceFlat && bigVolume) {
+      const confirmed = buyDominant;
+      anomaly = {
+        time: c.time, closeTime: c.closeTime, type: 'absorb_longs',
+        icon: '▼', label: 'Абсорб. лонгів',
+        desc: `Купівля ${d.delta.toFixed(0)} BTC, ціна ±${pChg.toFixed(2)}% — поглинання${confirmed ? ' ✓ підтв.' : ''}`,
+        mPos: 'aboveBar', mColor: confirmed ? '#ff4466' : '#ef4444', mShape: 'arrowDown',
+        severity: 'sell', tier: confirmed && tier === 'mid' ? 'high' : tier, isImpulse,
+        volAbs: Math.abs(d.delta), imbalRatio,
+      };
+    }
+
+    if (anomaly) found.push(anomaly);
+  }
+
+  // Дедуплікація по свічці
+  const seen = new Set();
+  return found.filter(a => { if (seen.has(a.time)) return false; seen.add(a.time); return true; });
+}
+
+// ═══════════════════════════════════════════════════════
+//  CHART UPDATE
+// ═══════════════════════════════════════════════════════
+function updateCharts() {
+  candleSeries.setData(klineData);
+  cvdSeries.setData(cvdPoints.map(p => ({ time: p.time, value: p.value })));
+}
+
+function markOnChart() {
+  const markers = anomalies.map(a => ({
+    time: a.time, position: a.mPos,
+    color: a.mColor, shape: a.mShape,
+    text: '', size: 1.2,
+  }));
+  candleSeries.setMarkers(markers);
+  cvdSeries.setMarkers(markers.map(m => ({
+    time: m.time, position: 'belowBar',
+    color: m.color, shape: 'circle', text: '', size: 0.7,
+  })));
+}
+
+// ═══════════════════════════════════════════════════════
+//  HOVER SYNC: лог ↔ графік
+// ═══════════════════════════════════════════════════════
+let lastHighlightTime = null;
+function highlightLogByTime(time) {
+  // Знайти найближчу аномалію в межах поточної свічки
+  const match = anomalies.find(a => a.time === time);
+  if (!match) { clearLogHighlight(); return; }
+  if (lastHighlightTime === match.time) return;
+  lastHighlightTime = match.time;
+  document.querySelectorAll('.log-item').forEach(el => {
+    el.classList.toggle('log-active', el.dataset.time == match.time);
+  });
+}
+function clearLogHighlight() {
+  if (lastHighlightTime === null) return;
+  lastHighlightTime = null;
+  document.querySelectorAll('.log-item').forEach(el => el.classList.remove('log-active'));
+}
+function highlightChartByTime(time) {
+  if (!priceChart) return;
+  // Підсвічуємо через тимчасове збільшення маркера на цій точці
+  const markers = anomalies.map(a => ({
+    time: a.time, position: a.mPos, color: a.mColor, shape: a.mShape,
+    text: '', size: a.time === time ? 2.2 : 1.2,
+  }));
+  candleSeries.setMarkers(markers);
+}
+function resetChartHighlight() { markOnChart(); }
+
+// ═══════════════════════════════════════════════════════
+//  UI
+// ═══════════════════════════════════════════════════════
+function set(id, html) { const e = document.getElementById(id); if (e) e.innerHTML = html; }
+const fn  = (n, d=2) => n != null ? Number(n).toFixed(d) : '—';
+const fc  = n  => n != null ? Number(n).toLocaleString('en-US', {maximumFractionDigits:0}) : '—';
+const sign = (v, unit='%', d=2) => {
+  if (v == null) return '<span class="dim">—</span>';
+  const s = v > 0 ? '+' : '';
+  const c = v > 0 ? 'up' : v < 0 ? 'down' : 'neu';
+  return `<span class="${c}">${s}${fn(v,d)}${unit}</span>`;
+};
+
+function updateCards(ticker, rawKlines) {
+  const last    = klineData[klineData.length - 1];
+  const cvdLast = cvdPoints[cvdPoints.length - 1];
+  const pChg    = parseFloat(ticker.priceChangePercent);
+
+  set('cPrice', '$' + fc(last?.close));
+  set('cPriceSub', sign(pChg) + ' за 24г');
+
+  const cvdVal = cvdLast?.value ?? 0;
+  const cvdK   = (cvdVal / 1000).toFixed(1);
+  set('cCVD', (cvdVal >= 0 ? '+' : '') + cvdK + 'K');
+  document.getElementById('cCVD').style.color = cvdVal >= 0 ? 'var(--green)' : 'var(--red)';
+  set('cCVDSub', cvdVal >= 0
+    ? '<span class="up">↑ Чистий купівельний тиск</span>'
+    : '<span class="down">↓ Чистий продажний тиск</span>');
+
+  set('cvdLive', `CVD: <b style="color:${cvdVal>=0?'var(--green)':'var(--red)'}">${cvdVal>=0?'+':''}${cvdK}K BTC</b>`);
+
+  // Imbalance ratio
+  if (rawKlines && rawKlines.length) {
+    const { ratio } = calcImbalance(rawKlines);
+    const imbalColor = ratio > 1.35 ? 'var(--green)' : ratio < 0.75 ? 'var(--red)' : 'var(--yellow)';
+    const imbalLabel = ratio > 1.35 ? '↑ Покупці домінують' : ratio < 0.75 ? '↓ Продавці домінують' : '→ Баланс';
+    set('cImbal', `<span style="color:${imbalColor}">${ratio.toFixed(2)}</span>`);
+    set('cImbalSub', `<span style="color:${imbalColor}">${imbalLabel}</span>`);
+  }
+
+}
+
+
+function updateAnomalyBanner() {
+  const box    = document.getElementById('anomBox');
+  const recent = anomalies.length ? anomalies[anomalies.length - 1] : null;
+
+  if (!recent) {
+    box.className = 'anom-inner a-ok';
+    set('anomIcon',  '✅');
+    set('anomTitle', 'Сигналів не виявлено');
+    set('anomBadge', '<span class="badge b-ok">НОРМА</span>');
+    set('anomDesc',  'Немає явного поглинання. CVD та ціна рухаються пропорційно.');
+    set('anomSignal','');
+    return;
+  }
+
+  const isBuy = recent.severity === 'buy';
+  box.className = `anom-inner ${isBuy ? 'a-buy-state' : 'a-sell-state'}`;
+  set('anomIcon',  isBuy ? '▲' : '▼');
+  set('anomTitle', recent.label);
+  set('anomBadge', isBuy
+    ? '<span class="badge b-info">BUY SIGNAL</span>'
+    : '<span class="badge b-alrt">SELL SIGNAL</span>');
+  set('anomDesc',  recent.desc);
+  set('anomSignal', `⚡ ${anomalies.length} сигналів за сесію · Останній: ${new Date(recent.time * 1000).toLocaleTimeString('uk-UA')}`);
+}
+
+function updateAnomalyLog() {
+  const log = document.getElementById('anomLog');
+  if (!anomalies.length) {
+    log.innerHTML = '<div class="log-item"><span class="log-text" style="color:var(--t3)">Сигналів не виявлено</span></div>';
+    return;
+  }
+  const last8 = [...anomalies].reverse().slice(0, 8);
+  log.innerHTML = last8.map(a => {
+    const isBuy = a.severity === 'buy';
+    const cls   = isBuy ? 'buy-signal' : 'sell-signal';
+    const color = isBuy ? 'var(--green)' : 'var(--red)';
+    const priorityTag = a.isImpulse ? '<span class="priority-tag priority-high">HIGH</span>' : '';
+    const imbalStr = a.imbalRatio != null
+      ? ` <span style="color:var(--t3);font-size:9px">IR:${a.imbalRatio.toFixed(2)}</span>` : '';
+    return `<div class="log-item ${cls} tier-${a.tier}" data-time="${a.time}"
+                 onmouseenter="highlightChartByTime(${a.time}); highlightLogByTime(${a.time})"
+                 onmouseleave="resetChartHighlight(); clearLogHighlight()">
+      <span class="log-time">${new Date(a.time*1000).toLocaleTimeString('uk-UA',{hour:'2-digit',minute:'2-digit'})}</span>
+      <span class="log-text"><span style="color:${color};font-weight:700">${a.icon} ${a.label}</span>${priorityTag}${imbalStr}<br>${a.desc}</span>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  STATUS
+// ═══════════════════════════════════════════════════════
+function setBusy(on) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = on;
+  btn.innerHTML = on ? '<span class="spinner"></span>' : '↻';
+}
+function setLive() {
+  document.getElementById('dot').className = 'dot live';
+  const t = document.getElementById('statusTxt');
+  t.style.color = 'var(--green)'; t.textContent = 'LIVE';
+}
+function setErr(msg) {
+  document.getElementById('dot').className = 'dot err';
+  const t = document.getElementById('statusTxt');
+  t.style.color = 'var(--red)'; t.textContent = 'ПОМИЛКА';
+  set('srcTxt', msg?.slice(0, 50) ?? '');
+  document.getElementById('anomBox').className = 'anom-inner a-alert';
+  set('anomIcon', '⚠️'); set('anomTitle', 'Помилка підключення');
+  set('anomBadge', '<span class="badge b-alrt">ERR</span>');
+  set('anomDesc', 'Перевір інтернет або вимкни VPN.');
+  set('anomSignal', '');
+}
+
+// ═══════════════════════════════════════════════════════
+//  MAIN
+// ═══════════════════════════════════════════════════════
+async function loadAll() {
+  setBusy(true);
+  const cfg = TF_CONFIG[currentTF];
+  try {
+    const [rawKlines, ticker] = await Promise.all([
+      fetchSpot(`/api/v3/klines?symbol=${SYM}&interval=${currentTF}&limit=${cfg.limit}`),
+      fetchSpot(`/api/v3/ticker/24hr?symbol=${SYM}`),
+    ]);
+    klineData = formatCandles(rawKlines);
+    cvdPoints = calcCVD(rawKlines);
+
+    if (!isChartsInited) initCharts();
+    updateCharts();
+    anomalies = detectAnomalies(klineData, cvdPoints);
+    markOnChart();
+    updateCards(ticker, rawKlines);
+    updateAnomalyBanner();
+    updateAnomalyLog();
+    checkAndNotifyTg(anomalies);
+
+    fetchFutures().then(f => { if (f) { futures = f; } });
+
+    setLive();
+  } catch(e) {
+    setErr(e.message);
+  }
+  setBusy(false);
+}
+
+// ═══════════════════════════════════════════════════════
+//  TELEGRAM NOTIFICATIONS
+// ═══════════════════════════════════════════════════════
+const TG_STORAGE_KEY = 'btc_tg_settings';
+const TG_SENT_KEY    = 'btc_tg_sent_times';
+let tgSettings = { token: '', chatId: '' };
+let tgSentTimes = new Set(); // щоб не надсилати двічі для однієї свічки
+
+function loadTgSettings() {
+  try {
+    const saved = localStorage.getItem(TG_STORAGE_KEY);
+    if (saved) {
+      tgSettings = JSON.parse(saved);
+      document.getElementById('tgToken').value  = tgSettings.token  || '';
+      document.getElementById('tgChatId').value = tgSettings.chatId || '';
+      // Завантажити вже надіслані таймстемпи (не більше 200 шт)
+      const sent = JSON.parse(localStorage.getItem(TG_SENT_KEY) || '[]');
+      tgSentTimes = new Set(sent);
+    }
+    updateTgStatus();
+  } catch(e) { console.warn('TG load error', e); }
+}
+
+function saveTgSettings() {
+  tgSettings.token  = document.getElementById('tgToken').value.trim();
+  tgSettings.chatId = document.getElementById('tgChatId').value.trim();
+  localStorage.setItem(TG_STORAGE_KEY, JSON.stringify(tgSettings));
+  updateTgStatus();
+  document.getElementById('tgPanel').style.display = 'none';
+  if (tgSettings.token && tgSettings.chatId) {
+    showToast('✅ Telegram збережено');
+  }
+}
+
+function updateTgStatus() {
+  const dot = document.getElementById('tgDot');
+  const txt = document.getElementById('tgStatusTxt');
+  const ok  = tgSettings.token && tgSettings.chatId;
+  dot.style.background = ok ? 'var(--green)' : 'var(--t3)';
+  txt.style.color       = ok ? 'var(--green)' : 'var(--t3)';
+  txt.textContent       = ok ? 'TG ✓' : 'TG';
+}
+
+function toggleTgPanel() {
+  const p = document.getElementById('tgPanel');
+  const visible = p.style.display === 'flex';
+  p.style.display = visible ? 'none' : 'flex';
+}
+
+async function sendTgMessage(text) {
+  if (!tgSettings.token || !tgSettings.chatId) return false;
+  try {
+    const url = `https://api.telegram.org/bot${tgSettings.token}/sendMessage`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: tgSettings.chatId,
+        text,
+        parse_mode: 'HTML',
+        disable_notification: false,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const d = await r.json();
+    return d.ok === true;
+  } catch(e) {
+    console.warn('TG send error', e);
+    return false;
+  }
+}
+
+async function testTgMessage() {
+  if (!tgSettings.token || !tgSettings.chatId) {
+    showToast('⚠️ Спочатку збережи Token та Chat ID');
+    return;
+  }
+  showToast('Надсилаю тест...');
+  const ok = await sendTgMessage(
+    `🔔 <b>BTC Anomaly Detector — тест</b>\n\n` +
+    `✅ Сповіщення налаштовано!\n` +
+    `Будеш отримувати HIGH-tier сигнали поглинання на H4.\n\n` +
+    `<i>Час: ${new Date().toLocaleString('uk-UA')}</i>`
+  );
+  showToast(ok ? '✅ Тест надіслано!' : '❌ Помилка — перевір Token та Chat ID');
+}
+
+// Викликається після кожного оновлення аномалій
+async function checkAndNotifyTg(newAnomalies) {
+  if (!tgSettings.token || !tgSettings.chatId) return;
+
+  const tfSeconds = { '5m': 300, '15m': 900, '1h': 3600, '4h': 14400 };
+  const candleLen = tfSeconds[currentTF] || 900; // тривалість свічки в сек
+  const now = Math.floor(Date.now() / 1000);
+
+  for (const a of newAnomalies) {
+    if (a.tier !== 'high') continue;
+    if (tgSentTimes.has(a.time)) continue;
+
+    // ── ПЕРЕВІРКА 1: свічка має бути ЗАКРИТА ──────────────
+    // closeTime = час закриття свічки. Якщо його немає — рахуємо як openTime + тривалість TF
+    const closeTime = a.closeTime ?? (a.time + candleLen - 1);
+    if (now <= closeTime) continue; // свічка ще не закрита — пропускаємо
+
+    // ── ПЕРЕВІРКА 2: сигнал не старіший ніж 3 свічки ─────
+    // Захист від відправки старих сигналів при відкритті вкладки після паузи
+    const maxAge = candleLen * 3;
+    if (now - closeTime > maxAge) {
+      tgSentTimes.add(a.time); // запамʼятовуємо щоб не перевіряти знову
+      const arr = Array.from(tgSentTimes).slice(-200);
+      localStorage.setItem(TG_SENT_KEY, JSON.stringify(arr));
+      continue;
+    }
+
+    // ── ВІДПРАВКА ─────────────────────────────────────────
+    tgSentTimes.add(a.time);
+    const arr = Array.from(tgSentTimes).slice(-200);
+    localStorage.setItem(TG_SENT_KEY, JSON.stringify(arr));
+
+    const isBuy    = a.severity === 'buy';
+    const emoji    = isBuy ? '🟢' : '🔴';
+    const action   = isBuy ? 'BUY SIGNAL ▲' : 'SELL SIGNAL ▼';
+    const openTime = new Date(a.time * 1000).toLocaleString('uk-UA', { timeZone: 'Europe/Kiev' });
+    const closeStr = new Date(closeTime * 1000).toLocaleString('uk-UA', { timeZone: 'Europe/Kiev' });
+    const isConf   = a.desc.includes('підтв.');
+    const tfLabel  = { '5m': 'M5', '15m': 'M15', '1h': 'H1', '4h': 'H4' }[currentTF] || currentTF.toUpperCase();
+    const tierLabel = a.tier === 'high' ? '🔴 HIGH' : a.tier === 'mid' ? '🟡 MID' : '⚪ LOW';
+
+    const msg =
+      `${emoji} <b>BTCUSDT ${tfLabel} — ${action}</b>\n` +
+      `━━━━━━━━━━━━━━\n` +
+      `📌 <b>${a.label}</b>${isConf ? ' ✓ підтверджено' : ''}\n` +
+      `📊 ${a.desc}\n` +
+      `⚡ Tier: <b>${tierLabel}</b>${a.isImpulse ? ' · IMPULSE' : ''}\n` +
+      `🕐 Відкриття: ${openTime}\n` +
+      `🔒 Закриття:  ${closeStr}\n` +
+      `━━━━━━━━━━━━━━\n` +
+      `<i>BTC Anomaly Detector</i>`;
+
+    await sendTgMessage(msg);
+  }
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      background:#1c2740;color:var(--t1);padding:8px 18px;border-radius:8px;
+      font-family:var(--mono);font-size:12px;z-index:9999;
+      border:1px solid var(--border);opacity:0;transition:opacity .25s;pointer-events:none;`;
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, 2800);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadTgSettings();
+  initCharts();
+  loadAll();
+  setInterval(loadAll, 60000);
+});
+
+
+</script>
+</body>
+</html>
